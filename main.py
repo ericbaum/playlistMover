@@ -17,7 +17,7 @@ def parse_playlist(playlist):
 def gather_files_data(path):
 
     collected = []
-    for (dirpath, dirnames, filenames) in walk(path):
+    for (dirpath, _, filenames) in walk(path):
         for filename in filenames:
             collected.append(dirpath + '/' + filename)
 
@@ -27,6 +27,8 @@ def move_songs(songs, current, dest, depth, clear):
 
     total_size = len(songs)
     transfer_count = 0
+
+    result_files = current
 
     #Iterate songs that will be copied
     while len(songs) != 0:
@@ -40,6 +42,8 @@ def move_songs(songs, current, dest, depth, clear):
 
         dest_file = dest_path + '/' + src_items[-1]
 
+        transfer_count = transfer_count + 1
+
         # If file already exists, doesnt copy
         if dest_file in current:
             current.remove(dest_file)
@@ -48,9 +52,15 @@ def move_songs(songs, current, dest, depth, clear):
             if not os.path.exists(dest_path):
                 os.makedirs(dest_path, exist_ok=True)
 
-            shutil.copyfile(src=src_file, dst=dest_file, follow_symlinks=True)
-
-            transfer_count = transfer_count + 1
+            try:
+                shutil.copyfile(src=src_file, dst=dest_file, follow_symlinks=True)
+                result_files.append(dest_file)
+            except FileNotFoundError:
+                print("Playlist contains invalid file: {}".format(src_file))
+                continue          
+            except OSError:
+                print("Failed to copy file {}, retrying.".format(src_file))
+                shutil.copyfile(src=src_file, dst=dest_file, follow_symlinks=True)
 
             print("New music added ({}/{}): {}".format(transfer_count, total_size, dest_file))
 
@@ -64,6 +74,9 @@ def move_songs(songs, current, dest, depth, clear):
             os.remove(left_file)
             transfer_count = transfer_count + 1
             print("File Removed ({}/{}): {}".format(transfer_count, total_size, left_file))
+            result_files.remove(left_file)
+
+    return result_files
 
 def main():
 
@@ -76,6 +89,8 @@ def main():
                              'Default = 0, files are copied drectly to the root of the destination', )
     parser.add_argument('--clear', action='store_true', default=False,
                         help="Remove any other non-matched file")
+    parser.add_argument('--no-use-cache', dest="cache", action='store_false', default=True,
+                        help="Don't use the cellphone cached information")
 
     args = parser.parse_args()
 
@@ -95,13 +110,23 @@ def main():
         for item in play:
             all_songs.add(item)
 
-    print("Gathering destination files information")
-    # Look for the list of current files on the destination
-    current_songs = gather_files_data(args.dest)
+    if args.cache:
+        print("Loading cached files information")
+        # TODO: Read cache data
+        current_songs = cache_data
+    else:
+        print("Gathering destination files information")
+        # Look for the list of current files on the destination
+        current_songs = gather_files_data(args.dest)
+        cache_data = current_songs
 
     print("Copying music to destination folder")
     # Move music files to the destination folder
-    move_songs(all_songs, current_songs, args.dest, args.depth, args.clear)
+    result = move_songs(all_songs, current_songs, args.dest, args.depth, args.clear)
+
+    print("Caching resulting files information")
+    with open("cache.txt", 'w') as cache_file:
+        cache_file.writelines(result)    
 
 if __name__ == "__main__":
     main()
