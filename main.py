@@ -12,7 +12,35 @@ def parse_playlist(playlist):
         if line[0] != '#':
             songs.append(line)
 
+    file.close()
+
     return songs
+
+def generate_playlists(playlists, dest, depth, real_path=None):
+
+    if not real_path:
+        real_path = dest
+
+    for play in playlists:
+
+        out_play = dest + '/' + play.split('/')[-1]
+
+        with open(play, 'r') as in_file:
+            with open(out_play, 'w') as  out_file:
+                for line in in_file.readlines():
+                    # found a music
+                    if line[0] != '#':
+                        src_file = line.rstrip()
+                        src_items = src_file.split('/')
+
+                        dest_file = real_path
+
+                        for pos in range(0, depth):
+                            dest_file = dest_file + '/' + src_items[-depth-1+pos]
+
+                        dest_file = dest_file + '/' + src_items[-1] + '\n'
+
+                        out_file.write(dest_file)
 
 def gather_files_data(path):
 
@@ -28,7 +56,8 @@ def move_songs(songs, current, dest, depth, clear):
     total_size = len(songs)
     transfer_count = 0
 
-    result_files = current
+    result_files = []
+    result_files = current.copy()
 
     #Iterate songs that will be copied
     while len(songs) != 0:
@@ -91,6 +120,10 @@ def main():
                         help="Remove any other non-matched file")
     parser.add_argument('--no-use-cache', dest="cache", action='store_false', default=True,
                         help="Don't use the cellphone cached information")
+    parser.add_argument('--play-dest', dest='play_dest', type=str, default=None, required=False,
+                        help='Path where the playlist files will be created, defaults to dest')
+    parser.add_argument('--play-path', dest='play_path', type=str, default=None, required=False,
+                        help='Path that will be used as base for the playlist files, defaults to dest')
 
     args = parser.parse_args()
 
@@ -110,15 +143,16 @@ def main():
         for item in play:
             all_songs.add(item)
 
-    if args.cache:
+    if args.cache and os.path.isfile("cache.txt"):
         print("Loading cached files information")
-        # TODO: Read cache data
-        current_songs = cache_data
+        with open("cache.txt", 'r') as cache_file:
+            current_songs = []
+            for line in cache_file.readlines():
+                current_songs.append(line.rstrip())
     else:
         print("Gathering destination files information")
         # Look for the list of current files on the destination
         current_songs = gather_files_data(args.dest)
-        cache_data = current_songs
 
     print("Copying music to destination folder")
     # Move music files to the destination folder
@@ -126,7 +160,17 @@ def main():
 
     print("Caching resulting files information")
     with open("cache.txt", 'w') as cache_file:
-        cache_file.writelines(result)    
+        for song in result:
+            cache_file.write(song + '\n')
+
+    print("Generating remote playlists")
+
+    if args.play_dest:
+        play_dest = args.play_dest
+    else:
+        play_dest = args.dest
+
+    generate_playlists(args.playlist, play_dest, args.depth, args.play_path)  
 
 if __name__ == "__main__":
     main()

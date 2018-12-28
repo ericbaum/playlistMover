@@ -3,3 +3,6 @@ Pipfile*
 
 # VS Code files
 .vscode/
+
+# Cached data
+cache.txt
