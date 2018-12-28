@@ -23,7 +23,7 @@ def generate_playlists(playlists, dest, depth, real_path=None):
 
     for play in playlists:
 
-        out_play = dest + '/' + play.split('/')[-1]
+        out_play = dest + '/' + play.split('/')[-1].split('.')[0] + '.m3u8'
 
         with open(play, 'r') as in_file:
             with open(out_play, 'w') as  out_file:
